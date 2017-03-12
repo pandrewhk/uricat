@@ -12,23 +12,25 @@ import "sync"
 
 type htin struct {
     Url    string
+    Status string
+    StatusCode int
+    Proto  string
     Header http.Header
     Body   interface{}
 }
 
-func ht(v htin, enc *json.Encoder, wg *sync.WaitGroup){
+func ht(v htin, cl *http.Client, enc *json.Encoder, wg *sync.WaitGroup){
     if len(v.Url) > 0 {
-        resp, _ := http.Get(v.Url)
+        resp, _ := cl.Get(v.Url)
         defer resp.Body.Close()
         v.Body, _ = ioutil.ReadAll(resp.Body)
-        v.Header = resp.Header
-//        v.Body = string(v.Body.([]byte))
+        v.Header, v.Status, v.StatusCode, v.Proto =
+        resp.Header, resp.Status, resp.StatusCode, resp.Proto
         if err := json.Unmarshal(v.Body.([]byte), &(v.Body)); err != nil {
            v.Body = string(v.Body.([]byte))
         }
     }
 
-//    log.Println(v.Body)
     enc.Encode(&v)
 
     wg.Done()
@@ -36,6 +38,8 @@ func ht(v htin, enc *json.Encoder, wg *sync.WaitGroup){
 
 func main() {
     var wg sync.WaitGroup
+    tr := &http.Transport{}
+    cl := &http.Client{Transport: tr}
     dec := json.NewDecoder(os.Stdin)
     enc := json.NewEncoder(os.Stdout)
     enc.SetEscapeHTML(false)
@@ -43,7 +47,7 @@ func main() {
         var v htin
         dec.Decode(&v)
         wg.Add(1)
-        go ht(v, enc, &wg)
+        go ht(v, cl, enc, &wg)
     }
     wg.Wait()
 }
